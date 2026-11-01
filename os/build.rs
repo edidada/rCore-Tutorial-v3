@@ -38,6 +38,27 @@ _num_app:
     }
     writeln!(f, r#"    .quad app_{}_end"#, apps.len() - 1)?;
 
+    writeln!(f, ".global _app_memory_end\n_app_memory_end:")?;
+    for app in &apps {
+        let elf = std::fs::read(format!("../user/build/elf/{}.elf", app))?;
+        let word = |offset: usize| -> usize {
+            let mut bytes = [0u8; 8];
+            bytes.copy_from_slice(&elf[offset..offset + 8]);
+            u64::from_le_bytes(bytes) as usize
+        };
+        let phoff = word(32);
+        let phsize = u16::from_le_bytes([elf[54], elf[55]]) as usize;
+        let phnum = u16::from_le_bytes([elf[56], elf[57]]) as usize;
+        let mut end = 0;
+        for index in 0..phnum {
+            let offset = phoff + index * phsize;
+            if elf[offset..offset + 4] == [1, 0, 0, 0] {
+                end = end.max(word(offset + 16) + word(offset + 40));
+            }
+        }
+        writeln!(f, "    .quad {}", end)?;
+    }
+
     for (idx, app) in apps.iter().enumerate() {
         println!("app_{}: {}", idx, app);
         writeln!(

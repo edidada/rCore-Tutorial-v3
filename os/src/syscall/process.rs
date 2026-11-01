@@ -27,6 +27,10 @@ pub fn sys_yield() -> isize {
 // }
 
 pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
+    if ts as usize % core::mem::align_of::<TimeVal>() != 0
+        || !crate::loader::valid_user_range(crate::task::current_id(), ts as usize, core::mem::size_of::<TimeVal>()) {
+        return -1;
+    }
     let us = get_time_us();
     unsafe {
         *ts = TimeVal {

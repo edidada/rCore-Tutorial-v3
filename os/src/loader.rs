@@ -81,3 +81,15 @@ pub fn init_app_cx(app_id: usize) -> usize {
         TrapContext::app_init_context(get_base_i(app_id), USER_STACK[app_id].get_sp()),
     )
 }
+
+/// 验证应用内存，不允许读取其他任务或内核栈。
+pub fn valid_user_range(id: usize, start: usize, len: usize) -> bool {
+    if id >= get_num_app() { return false; }
+    if len == 0 { return true; }
+    let end = match start.checked_add(len) { Some(end) => end, None => return false };
+    extern "C" { fn _app_memory_end(); }
+    let image_end = unsafe { *((_app_memory_end as usize as *const usize).add(id)) };
+    let stack_top = USER_STACK[id].get_sp();
+    (start >= get_base_i(id) && end <= image_end)
+        || (start >= stack_top - USER_STACK_SIZE && end <= stack_top)
+}
