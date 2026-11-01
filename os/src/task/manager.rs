@@ -28,9 +28,18 @@ lazy_static! {
 }
 
 pub fn add_task(task: Arc<TaskControlBlock>) {
+    TASKS.exclusive_access().insert(task.pid.0, Arc::downgrade(&task));
     TASK_MANAGER.exclusive_access().add(task);
 }
 
 pub fn fetch_task() -> Option<Arc<TaskControlBlock>> {
     TASK_MANAGER.exclusive_access().fetch()
+}
+lazy_static! {
+    static ref TASKS: UPSafeCell<alloc::collections::BTreeMap<usize, alloc::sync::Weak<TaskControlBlock>>> = unsafe {
+        UPSafeCell::new(alloc::collections::BTreeMap::new())
+    };
+}
+pub fn find_task(pid: usize) -> Option<Arc<TaskControlBlock>> {
+    TASKS.exclusive_access().get(&pid).and_then(|task| task.upgrade())
 }

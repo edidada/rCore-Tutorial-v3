@@ -27,6 +27,7 @@ pub struct TaskControlBlockInner {
     pub parent: Option<Weak<TaskControlBlock>>,
     pub children: Vec<Arc<TaskControlBlock>>,
     pub exit_code: i32,
+    pub mailbox: alloc::collections::VecDeque<Vec<u8>>,
     pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>,
 }
 
@@ -81,6 +82,7 @@ impl TaskControlBlock {
                 parent: None,
                 children: Vec::new(),
                 exit_code: 0,
+                mailbox: alloc::collections::VecDeque::new(),
                 fd_table: vec![
                     // 0 -> stdin
                     Some(Arc::new(Stdin)),
@@ -102,6 +104,14 @@ impl TaskControlBlock {
         );
         task_control_block
     }
+    /// 从 ELF 创建独立子进程，直接建立父子关系而不复制父地址空间。
+    pub fn spawn(self: &Arc<Self>, elf_data: &[u8]) -> Arc<Self> {
+        let child = Arc::new(Self::new(elf_data));
+        child.inner_exclusive_access().parent = Some(Arc::downgrade(self));
+        self.inner_exclusive_access().children.push(child.clone());
+        child
+    }
+
     pub fn exec(&self, elf_data: &[u8]) {
         // memory_set with elf program headers/trampoline/trap context/user stack
         let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
@@ -163,6 +173,7 @@ impl TaskControlBlock {
                 parent: Some(Arc::downgrade(self)),
                 children: Vec::new(),
                 exit_code: 0,
+                mailbox: alloc::collections::VecDeque::new(),
                 fd_table: new_fd_table,
             })},
         });

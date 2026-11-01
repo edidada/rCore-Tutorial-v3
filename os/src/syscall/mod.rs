@@ -12,12 +12,18 @@ const SYSCALL_WAITPID: usize = 260;
 
 mod fs;
 mod process;
+mod mail;
 
 use fs::*;
 use process::*;
 
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
     match syscall_id {
+        400 => sys_spawn(args[0] as *const u8),
+        401 => mail::read(args[0], args[1]),
+        402 => mail::write(args[0], args[1], args[2]),
+        222 => sys_mmap(args[0], args[1], args[2]),
+        215 => sys_munmap(args[0], args[1]),
         SYSCALL_CLOSE => sys_close(args[0]),
         SYSCALL_PIPE => sys_pipe(args[0] as *mut usize),
         SYSCALL_READ => sys_read(args[0], args[1] as *const u8, args[2]),

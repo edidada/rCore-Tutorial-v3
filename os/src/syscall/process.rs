@@ -5,13 +5,13 @@ use crate::task::{
     current_user_token,
     add_task,
 };
-use crate::timer::get_time_us;
 use crate::mm::{
     translated_str,
     translated_refmut,
 };
 use crate::loader::get_app_data_by_name;
 use alloc::sync::Arc;
+use crate::timer::get_time_us;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -27,17 +27,6 @@ pub fn sys_exit(exit_code: i32) -> ! {
 
 pub fn sys_yield() -> isize {
     suspend_current_and_run_next();
-    0
-}
-
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    let _us = get_time_us();
-    // unsafe {
-    //     *ts = TimeVal {
-    //         sec: us / 1_000_000,
-    //         usec: us % 1_000_000,
-    //     };
-    // }
     0
 }
 
@@ -61,7 +50,7 @@ pub fn sys_fork() -> isize {
 
 pub fn sys_exec(path: *const u8) -> isize {
     let token = current_user_token();
-    let path = translated_str(token, path);
+    let path = match crate::mm::checked_user_string(token, path as usize) { Some(path) => path, None => return -1 };
     if let Some(data) = get_app_data_by_name(path.as_str()) {
         let task = current_task().unwrap();
         task.exec(data);
@@ -108,4 +97,35 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
         -2
     }
     // ---- release current PCB lock automatically
+}
+
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
+    let buffers = match crate::mm::checked_user_buffer(crate::task::current_user_token(), ts as usize, 16, true) {
+        Some(buffers) => buffers, None => return -1,
+    };
+    let us = get_time_us();
+    let mut bytes = [0u8; 16];
+    bytes[..8].copy_from_slice(&(us / 1_000_000).to_ne_bytes());
+    bytes[8..].copy_from_slice(&(us % 1_000_000).to_ne_bytes());
+    let mut offset = 0;
+    for buffer in buffers { let len = buffer.len(); buffer.copy_from_slice(&bytes[offset..offset + len]); offset += len; }
+    0
+}
+
+pub fn sys_spawn(path: *const u8) -> isize {
+    let path = match crate::mm::checked_user_string(current_user_token(), path as usize) { Some(path) => path, None => return -1 };
+    if let Some(data) = get_app_data_by_name(path.as_str()) {
+        let parent = current_task().unwrap();
+        let child = parent.spawn(data);
+        let pid = child.pid.0;
+        add_task(child);
+        pid as isize
+    } else { -1 }
+}
+
+pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
+    current_task().unwrap().inner_exclusive_access().memory_set.mmap(start, len, prot)
+}
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    current_task().unwrap().inner_exclusive_access().memory_set.munmap(start, len)
 }

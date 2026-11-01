@@ -41,6 +41,42 @@ pub struct MemorySet {
 }
 
 impl MemorySet {
+    pub fn mmap(&mut self, start: usize, len: usize, prot: usize) -> isize {
+        if start % PAGE_SIZE != 0 || prot == 0 || prot & !7 != 0 { return -1; }
+        let end = match start.checked_add(len).and_then(|end| end.checked_add(PAGE_SIZE - 1)) {
+            Some(end) if end < (1usize << 38) => end / PAGE_SIZE * PAGE_SIZE,
+            _ => return -1,
+        };
+        if len == 0 { return 0; }
+        for page in (start..end).step_by(PAGE_SIZE) {
+            if self.translate(VirtAddr::from(page).floor()).is_some() { return -1; }
+        }
+        // 每页单独记录，允许 munmap 任意完整子区间。
+        for page in (start..end).step_by(PAGE_SIZE) {
+            self.insert_framed_area(page.into(), (page + PAGE_SIZE).into(),
+                MapPermission::from_bits((prot << 1) as u8).unwrap() | MapPermission::U);
+        }
+        0
+    }
+    pub fn munmap(&mut self, start: usize, len: usize) -> isize {
+        if start % PAGE_SIZE != 0 { return -1; }
+        let end = match start.checked_add(len).and_then(|end| end.checked_add(PAGE_SIZE - 1)) {
+            Some(end) if end < (1usize << 38) => end / PAGE_SIZE * PAGE_SIZE,
+            _ => return -1,
+        };
+        if len == 0 { return 0; }
+        for page in (start..end).step_by(PAGE_SIZE) {
+            let vpn = VirtAddr::from(page).floor();
+            if self.translate(vpn).map(|pte| pte.flags().contains(PTEFlags::U)) != Some(true) { return -1; }
+        }
+        for page in (start..end).step_by(PAGE_SIZE) {
+            let vpn = VirtAddr::from(page).floor();
+            for area in &mut self.areas {
+                if area.data_frames.contains_key(&vpn) { area.unmap_one(&mut self.page_table, vpn); break; }
+            }
+        }
+        0
+    }
     pub fn new_bare() -> Self {
         Self {
             page_table: PageTable::new(),
@@ -206,7 +242,7 @@ impl MemorySet {
         let satp = self.page_table.token();
         unsafe {
             satp::write(satp);
-            asm!("sfence.vma");
+            core::arch::asm!("sfence.vma");
         }
     }
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
