@@ -159,7 +159,7 @@ impl Inode {
 
     /// 稳定 inode 标识：磁盘块号及块内位置，不随目录名称改变。
     pub fn number(&self) -> u64 {
-        (self.block_id * 512 + self.block_offset) as u64
+        self.fs.lock().get_disk_inode_id(self.block_id, self.block_offset) as u64
     }
     /// 根目录中指向目标 inode 的名称数量。
     pub fn links_to(&self, target: &Inode) -> u32 {
