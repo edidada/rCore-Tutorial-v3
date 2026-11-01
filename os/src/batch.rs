@@ -3,7 +3,7 @@ use crate::trap::TrapContext;
 use crate::sync::UPSafeCell;
 use core::arch::asm;
 
-const USER_STACK_SIZE: usize = 4096 * 2;
+const USER_STACK_SIZE: usize = 4096;
 const KERNEL_STACK_SIZE: usize = 4096 * 2;
 const MAX_APP_NUM: usize = 16;
 const APP_BASE_ADDRESS: usize = 0x80400000;
@@ -55,7 +55,8 @@ impl AppManager {
 
     unsafe fn load_app(&self, app_id: usize) {
         if app_id >= self.num_app {
-            panic!("All applications completed!");
+            println!("All applications completed!");
+            crate::sbi::shutdown();
         }
         println!("[kernel] Loading app_{}", app_id);
         // clear icache
@@ -126,4 +127,17 @@ pub fn run_next_app() -> ! {
         ) as *const _ as usize);
     }
     panic!("Unreachable in batch::run_current_app!");
+}
+
+/// 只允许当前应用的映像及其用户栈，拒绝溢出与跨区间访问。
+pub fn readable_user_range(start: usize, len: usize) -> bool {
+    if len == 0 { return true; }
+    let end = match start.checked_add(len) { Some(end) => end, None => return false };
+    let manager = APP_MANAGER.exclusive_access();
+    let index = manager.current_app - 1;
+    extern "C" { fn _app_memory_end(); }
+    let image_end = unsafe { *((_app_memory_end as usize as *const usize).add(index)) };
+    let stack_top = USER_STACK.get_sp();
+    (start >= APP_BASE_ADDRESS && end <= image_end)
+        || (start >= stack_top - USER_STACK_SIZE && end <= stack_top)
 }

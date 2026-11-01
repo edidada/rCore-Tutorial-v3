@@ -34,11 +34,11 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
         }
         Trap::Exception(Exception::StoreFault) |
         Trap::Exception(Exception::StorePageFault) => {
-            println!("[kernel] PageFault in application, core dumped.");
+            println!("[kernel] PageFault: pc={:#x} address={:#x}", cx.sepc, stval);
             run_next_app();
         }
         Trap::Exception(Exception::IllegalInstruction) => {
-            println!("[kernel] IllegalInstruction in application, core dumped.");
+            println!("[kernel] IllegalInstruction: pc={:#x} instruction={:#x}", cx.sepc, stval);
             run_next_app();
         }
         _ => {
