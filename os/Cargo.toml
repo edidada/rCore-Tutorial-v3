@@ -10,3 +10,5 @@ edition = "2018"
 log = "=0.4.17"
 riscv = { git = "https://github.com/rcore-os/riscv", rev = "11d43cf7cccb3b62a3caaf3e07a1db7449588f9a", features = ["inline-asm"] }
 lazy_static = { version = "=1.4.0", features = ["spin_no_std"] }
+[build-dependencies]
+regex = "=1.6.0"
