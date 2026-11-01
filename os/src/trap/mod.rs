@@ -19,7 +19,7 @@ use crate::task::{
 };
 use crate::timer::set_next_trigger;
 
-global_asm!(include_str!("trap.S"));
+core::arch::global_asm!(include_str!("trap.S"));
 
 pub fn init() {
     extern "C" { fn __alltraps(); }

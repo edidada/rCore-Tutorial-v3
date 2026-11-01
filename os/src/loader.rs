@@ -57,7 +57,7 @@ pub fn load_apps() {
         core::slice::from_raw_parts(num_app_ptr.add(1), num_app + 1)
     };
     // clear i-cache first
-    unsafe { asm!("fence.i"); }
+    unsafe { core::arch::asm!("fence.i"); }
     // load apps
     for i in 0..num_app {
         let base_i = get_base_i(i);
