@@ -1,4 +1,5 @@
 mod virtio_blk;
+#[cfg(feature = "board_k210")]
 mod sdcard;
 
 use lazy_static::*;

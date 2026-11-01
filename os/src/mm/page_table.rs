@@ -109,7 +109,7 @@ impl PageTable {
         for i in 0..3 {
             let pte = &ppn.get_pte_array()[idxs[i]];
             if i == 2 {
-                result = Some(pte);
+                result = if pte.is_valid() { Some(pte) } else { None };
                 break;
             }
             if !pte.is_valid() {
@@ -252,4 +252,29 @@ impl Iterator for UserBufferIterator {
             Some(r)
         }
     }
+}/// 验证整个缓冲区的用户权限后才生成物理切片。
+pub fn checked_user_buffer(token: usize, start: usize, len: usize, write: bool) -> Option<Vec<&'static mut [u8]>> {
+    let end = start.checked_add(len)?;
+    if end > (1usize << 38) { return None; }
+    let table = PageTable::from_token(token);
+    let mut position = start;
+    while position < end {
+        let va = VirtAddr::from(position);
+        let pte = table.translate(va.floor())?;
+        if !pte.flags().contains(PTEFlags::U) || !pte.readable() || (write && !pte.writable()) { return None; }
+        position = end.min((position / 4096 + 1) * 4096);
+    }
+    Some(translated_byte_buffer(token, start as *const u8, len))
+}
+
+pub fn checked_user_string(token: usize, pointer: usize) -> Option<String> {
+    let mut bytes = Vec::new();
+    for offset in 0..4096 {
+        let address = pointer.checked_add(offset)?;
+        let buffers = checked_user_buffer(token, address, 1, false)?;
+        let byte = buffers[0][0];
+        if byte == 0 { return String::from_utf8(bytes).ok(); }
+        bytes.push(byte);
+    }
+    None
 }

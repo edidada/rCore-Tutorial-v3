@@ -24,7 +24,7 @@ mod mm;
 mod fs;
 mod drivers;
 
-global_asm!(include_str!("entry.asm"));
+core::arch::global_asm!(include_str!("entry.asm"));
 
 fn clear_bss() {
     extern "C" {
