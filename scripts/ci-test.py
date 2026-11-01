@@ -19,8 +19,13 @@ assert run.returncode == 0
 assert "All applications completed!" in output
 assert "Panicked" not in output and "FAIL:" not in output
 if suite == "2":
-    for marker in ["Test 04_1 OK!", "Test 04_4 test OK!", "Test 04_6 ummap2 OK!"]: assert marker in output
+    for marker in ["Test 04_1 OK!", "Test 04_4 test OK!", "Test 04_5 ummap OK!", "Test 04_6 ummap2 OK!"]: assert marker in output
     assert "fail!" not in output
+    assert output.count("PageFault in application") == 2
+elif suite == "3":
+    assert "Test mapping boundaries OK!" in output
+elif suite == "1":
+    assert "Test sleep OK!" in output and "Test sleep1 passed!" in output
 else:
-    assert "OK!" in output
+    for power in [3, 5, 7]: assert f"Test power_{power} OK!" in output
 print(f"CH4 SUITE {suite} PASSED")
