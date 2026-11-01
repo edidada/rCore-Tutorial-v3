@@ -6,18 +6,12 @@ const FD_STDIN: usize = 0;
 const FD_STDOUT: usize = 1;
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
-    match fd {
-        FD_STDOUT => {
-            let buffers = translated_byte_buffer(current_user_token(), buf, len);
-            for buffer in buffers {
-                print!("{}", core::str::from_utf8(buffer).unwrap());
-            }
-            len as isize
-        },
-        _ => {
-            panic!("Unsupported fd in sys_write!");
-        }
-    }
+    if fd != 1 { return -1; }
+    let buffers = match crate::mm::checked_user_buffer(crate::task::current_user_token(), buf as usize, len, false) {
+        Some(buffers) => buffers, None => return -1,
+    };
+    for buffer in buffers { for byte in buffer { crate::sbi::console_putchar(*byte as usize); } }
+    len as isize
 }
 
 pub fn sys_read(fd: usize, buf: *const u8, len: usize) -> isize {
@@ -27,7 +21,7 @@ pub fn sys_read(fd: usize, buf: *const u8, len: usize) -> isize {
             let mut c: usize;
             loop {
                 c = console_getchar();
-                if c == 0 {
+                if c == 0 || c == usize::MAX {
                     suspend_current_and_run_next();
                     continue;
                 } else {

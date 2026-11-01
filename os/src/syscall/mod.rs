@@ -16,6 +16,8 @@ use process::*;
 
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
     match syscall_id {
+        222 => sys_mmap(args[0], args[1], args[2]),
+        215 => sys_munmap(args[0], args[1]),
         400 => sys_spawn(args[0] as *const u8),
         SYSCALL_READ => sys_read(args[0], args[1] as *const u8, args[2]),
         SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
