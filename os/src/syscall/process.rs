@@ -109,3 +109,13 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     // }
     0
 }
+pub fn sys_spawn(path: *const u8) -> isize {
+    let path = translated_str(current_user_token(), path);
+    if let Some(data) = get_app_data_by_name(path.as_str()) {
+        let parent = current_task().unwrap();
+        let child = parent.spawn(data);
+        let pid = child.pid.0;
+        add_task(child);
+        pid as isize
+    } else { -1 }
+}
