@@ -130,6 +130,10 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
 }
 
 impl File for OSInode {
+    fn metadata(&self) -> Option<(u64, u32)> {
+        let inner = self.inner.exclusive_access();
+        Some((inner.inode.number(), ROOT_INODE.links_to(&inner.inode)))
+    }
     fn readable(&self) -> bool { self.readable }
     fn writable(&self) -> bool { self.writable }
     fn read(&self, mut buf: UserBuffer) -> usize {

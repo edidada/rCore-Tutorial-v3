@@ -18,8 +18,11 @@ mod process;
 use fs::*;
 use process::*;
 
-pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+pub fn syscall(syscall_id: usize, args: [usize; 6]) -> isize {
     match syscall_id {
+        80 => sys_fstat(args[0], args[1]),
+        37 => sys_link(args[1], args[3]),
+        35 => sys_unlink(args[1]),
         SYSCALL_DUP=> sys_dup(args[0]),
         SYSCALL_OPEN => sys_open(args[1] as *const u8, args[2] as u32),
         SYSCALL_CLOSE => sys_close(args[0]),

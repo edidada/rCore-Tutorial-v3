@@ -109,3 +109,28 @@ pub fn sys_dup(fd: usize) -> isize {
     inner.fd_table[new_fd] = Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap()));
     new_fd as isize
 }
+pub fn sys_fstat(fd: usize, pointer: usize) -> isize {
+    let task = current_task().unwrap();
+    let inner = task.inner_exclusive_access();
+    let file = match inner.fd_table.get(fd).and_then(|file| file.as_ref()) { Some(file) => file.clone(), None => return -1 };
+    drop(inner);
+    let (ino, links) = match file.metadata() { Some(value) => value, None => return -1 };
+    let buffers = match crate::mm::checked_user_buffer(current_user_token(), pointer, 80, true) { Some(buffers) => buffers, None => return -1 };
+    let mut bytes = [0u8; 80];
+    bytes[8..16].copy_from_slice(&ino.to_ne_bytes());
+    bytes[16..20].copy_from_slice(&0o100000u32.to_ne_bytes());
+    bytes[20..24].copy_from_slice(&links.to_ne_bytes());
+    let mut offset = 0;
+    for buffer in buffers { let size = buffer.len(); buffer.copy_from_slice(&bytes[offset..offset + size]); offset += size; }
+    0
+}
+pub fn sys_link(old: usize, new: usize) -> isize {
+    let token = current_user_token();
+    let old = match crate::mm::checked_user_string(token, old) { Some(path) => path, None => return -1 };
+    let new = match crate::mm::checked_user_string(token, new) { Some(path) => path, None => return -1 };
+    if crate::fs::ROOT_INODE.link(&old, &new) { 0 } else { -1 }
+}
+pub fn sys_unlink(path: usize) -> isize {
+    let path = match crate::mm::checked_user_string(current_user_token(), path) { Some(path) => path, None => return -1 };
+    if crate::fs::ROOT_INODE.unlink(&path) { 0 } else { -1 }
+}
