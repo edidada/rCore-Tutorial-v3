@@ -100,7 +100,7 @@ impl PageTable {
         for i in 0..3 {
             let pte = &ppn.get_pte_array()[idxs[i]];
             if i == 2 {
-                result = Some(pte);
+                result = if pte.is_valid() { Some(pte) } else { None };
                 break;
             }
             if !pte.is_valid() {
@@ -154,4 +154,18 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         start = end_va.into();
     }
     v
+}
+/// 验证整个缓冲区的用户权限后才生成物理切片。
+pub fn checked_user_buffer(token: usize, start: usize, len: usize, write: bool) -> Option<Vec<&'static mut [u8]>> {
+    let end = start.checked_add(len)?;
+    if end > (1usize << 38) { return None; }
+    let table = PageTable::from_token(token);
+    let mut position = start;
+    while position < end {
+        let va = VirtAddr::from(position);
+        let pte = table.translate(va.floor())?;
+        if !pte.flags().contains(PTEFlags::U) || !pte.readable() || (write && !pte.writable()) { return None; }
+        position = end.min((position / 4096 + 1) * 4096);
+    }
+    Some(translated_byte_buffer(token, start as *const u8, len))
 }

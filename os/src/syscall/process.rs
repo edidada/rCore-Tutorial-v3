@@ -22,13 +22,15 @@ pub fn sys_yield() -> isize {
     0
 }
 
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    let _us = get_time_us();
-    // unsafe {
-    //     *ts = TimeVal {
-    //         sec: us / 1_000_000,
-    //         usec: us % 1_000_000,
-    //     };
-    // }
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
+    let buffers = match crate::mm::checked_user_buffer(crate::task::current_user_token(), ts as usize, 16, true) {
+        Some(buffers) => buffers, None => return -1,
+    };
+    let us = get_time_us();
+    let mut bytes = [0u8; 16];
+    bytes[..8].copy_from_slice(&(us / 1_000_000).to_ne_bytes());
+    bytes[8..].copy_from_slice(&(us % 1_000_000).to_ne_bytes());
+    let mut offset = 0;
+    for buffer in buffers { let len = buffer.len(); buffer.copy_from_slice(&bytes[offset..offset + len]); offset += len; }
     0
 }

@@ -1,0 +1,37 @@
+name: ch4-lab experiments
+on:
+  push:
+    branches: ['edidada/ch4-lab']
+  pull_request:
+    branches: ['edidada/ch4-lab']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [0, 1, 2]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          rustup target add riscv64gc-unknown-none-elf
+          sudo apt-get update
+          sudo apt-get install -y binutils-riscv64-unknown-elf qemu-system-misc
+      - name: Build and verify experiment
+        run: bash scripts/ci-build.sh ${{ matrix.suite }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ch4-suite-${{ matrix.suite }}
+          path: |
+            ci-logs/
+            os/target/riscv64gc-unknown-none-elf/release/os*
+            os/Cargo.lock
+            user/Cargo.lock

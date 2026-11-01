@@ -112,7 +112,8 @@ impl TaskManager {
             }
             // go back to user mode
         } else {
-            panic!("All applications completed!");
+            println!("All applications completed!");
+            crate::sbi::shutdown();
         }
     }
 }
@@ -149,4 +150,12 @@ pub fn current_user_token() -> usize {
 
 pub fn current_trap_cx() -> &'static mut TrapContext {
     TASK_MANAGER.get_current_trap_cx()
+}
+pub fn change_mapping(start: usize, len: usize, prot: Option<usize>) -> isize {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let id = inner.current_task;
+    match prot {
+        Some(prot) => inner.tasks[id].memory_set.mmap(start, len, prot),
+        None => inner.tasks[id].memory_set.munmap(start, len),
+    }
 }
